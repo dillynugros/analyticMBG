@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geo-Analytics MBG - Tiered Hierarchy Guard v6.5.1</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Marker Cluster -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <!-- PapaParse & ExcelJS (SheetJS) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <!-- Chart.js and Datalabels Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        #map { height: 600px; width: 100%; z-index: 1; border-radius: 1.5rem; }
+        
+        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+
+        .sppg-marker-icon {
+            border: 2px solid white;
+            color: white; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            will-change: transform;
+        }
+        .sppg-marker-icon:hover { transform: scale(1.15) translateY(-2px); z-index: 1000 !important; }
+
+        /* Indikator Level Akurasi */
+        .status-tier-1 { ring: 4px solid #10b981; } 
+        .status-tier-2 { ring: 4px solid #0ea5e9; } 
+        .status-tier-3 { ring: 4px solid #8b5cf6; } 
+        .status-tier-4 { ring: 4px solid #6366f1; animation: pulse-blue 2s infinite; } 
+        .status-tier-5 { ring: 4px solid #f59e0b; } 
+
+        @keyframes pulse-blue {
+            0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+        }
+
+        .leaflet-popup-content-wrapper { border-radius: 1rem; padding: 0; overflow: hidden; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1); }
+        .leaflet-popup-content { margin: 0; width: 320px !important; }
+        
+        .loading-overlay { 
+            display: none; position: fixed; inset: 0; 
+            background: rgba(255, 255, 255, 0.9); z-index: 9999; 
+            align-items: center; justify-content: center; 
+            backdrop-filter: blur(4px);
+        }
+
+        .filter-select {
+            @apply w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 focus:ring-4 focus:ring-indigo-100 outline-none transition-all cursor-pointer appearance-none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 0.85rem;
+        }
+
+        .legend-dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+        input[type=range] { -webkit-appearance: none; width: 110px; background: transparent; }
+        input[type=range]:focus { outline: none; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #e2e8f0; border-radius: 2px; }
+        input[type=range]::-webkit-slider-thumb { height: 12px; width: 12px; border-radius: 50%; background: #4f46e5; cursor: pointer; -webkit-appearance: none; margin-top: -4px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+        
+        .map-overlay-control {
+            position: absolute;
+            top: 1.5rem;
+            left: 1.5rem; 
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-radius: 1rem;
+            padding: 0.5rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .info-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 99999;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+        }
+        .info-modal.active { display: flex; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 antialiased">
+
+    <!-- Modal Informasi -->
+    <div id="modal-info" class="info-modal">
+        <div class="bg-white rounded-[2.5rem] w-full max-w-2xl shadow-2xl overflow-hidden relative animate-in fade-in zoom-in duration-300">
+            <button id="close-modal" class="absolute top-6 right-8 text-slate-400 hover:text-slate-600 transition-colors">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+            <div class="p-10">
+                <div class="flex items-center gap-5 mb-8">
+                    <div class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                        <i class="fa-solid fa-circle-info text-2xl"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-900 tracking-tight leading-none">Geo-Analytics MBG</h2>
+                        <p class="text-xs font-bold text-slate-400 uppercase mt-1 tracking-widest">Informasi Sistem & Panduan</p>
+                    </div>
+                </div>
+
+                <div class="space-y-6 text-sm leading-relaxed text-slate-600">
+                    <div>
+                        <h4 class="font-black text-slate-800 uppercase text-[10px] tracking-widest mb-2 flex items-center gap-2">
+                            <i class="fa-solid fa-shield-halved text-indigo-500"></i> Logika Hierarki Spasial
+                        </h4>
+                        <p class="bg-slate-50 p-4 rounded-2xl text-[11px] border border-slate-100">
+                            Sistem menggunakan 5 level validasi otomatis untuk menjamin akurasi titik lokasi: <br>
+                            <strong>L1</strong>: Koordinat Presisi | <strong>L2</strong>: Pencocokan Alamat | <strong>L3</strong>: Titik Pusat Desa | <strong>L4</strong>: Titik Pusat Kecamatan | <strong>L5</strong>: Jaring Pengaman Kabupaten.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h4 class="font-black text-slate-800 uppercase text-[10px] tracking-widest mb-2 flex items-center gap-2">
+                            <i class="fa-solid fa-chart-column text-indigo-500"></i> Analisis & Monitoring
+                        </h4>
+                        <ul class="list-disc ml-5 space-y-1 text-[11px]">
+                            <li><strong>Estimasi Jangkauan</strong>: Simulasi radius layanan SPPG (1-6 km).</li>
+                            <li><strong>Registry Detail</strong>: Data induk SPPG, Pengurus, dan Yayasan.</li>
+                            <li><strong>Ekspor Data</strong>: Mendukung pengunduhan data tabel ke format Excel (.xlsx).</li>
+                            <li><strong>Data Cleaning</strong>: Memilih data terlengkap dari duplikasi nama identik.</li>
+                        </ul>
+                    </div>
+
+                    <div class="pt-6 border-t border-slate-100 flex items-center justify-between">
+                        <div class="flex flex-col">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase">Instansi Terkait</span>
+                            <span class="text-xs font-black text-slate-800">Kanwil DJPb Provinsi Banten</span>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase">App Version</span>
+                            <span class="block text-xs font-black text-indigo-600">v6.5.1 Stable Release</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Screen -->
+    <div id="loading" class="loading-overlay">
+        <div class="flex flex-col items-center gap-6 text-center">
+            <div class="relative">
+                <div class="w-20 h-20 border-4 border-indigo-100 rounded-full"></div>
+                <div class="absolute top-0 w-20 h-20 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <div class="space-y-2">
+                <h3 class="text-xl font-extrabold text-slate-800">Geo-Analytics MBG</h3>
+                <p class="text-slate-500 text-xs font-bold uppercase tracking-[0.2em] animate-pulse">Memuat Mesin Performa Tinggi v6.5.1...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-[1600px] mx-auto px-4 py-8 md:px-8">
+        <!-- Header Section -->
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
+            <div class="flex items-center gap-5">
+                <div class="w-16 h-16 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 relative overflow-hidden">
+                    <i class="fa-solid fa-globe text-3xl opacity-30 absolute"></i>
+                    <i class="fa-solid fa-utensils text-2xl relative z-10"></i>
+                </div>
+                <div>
+                    <h1 class="text-3xl font-black text-slate-900 tracking-tight leading-none">Geo-Analytics MBG <span class="text-indigo-600 text-xl font-bold italic">v6.5.1</span></h1>
+                    <p class="text-sm font-bold text-slate-600 mt-1 uppercase tracking-tighter">Kanwil DJPb Provinsi Banten</p>
+                    <p class="text-[10px] font-medium text-slate-400 italic leading-none">developed by : @dillynugros</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-4">
+                <div class="flex items-center bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200">
+                    <input type="text" id="sheet-url" 
+                           placeholder="Link Google Sheet..."
+                           value="https://docs.google.com/spreadsheets/d/1ukvhk5gIwkILMoFgAdIKAnVMKUX_kG8MH0fWzogmDSQ/edit?usp=sharing"
+                           class="w-64 px-4 py-2.5 text-xs font-semibold focus:outline-none rounded-xl">
+                    <button id="btn-sync" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase transition-all flex items-center gap-2 shadow-lg shadow-indigo-100">
+                        <i class="fa-solid fa-rotate"></i> Sync
+                    </button>
+                </div>
+                <button id="btn-open-info" class="w-11 h-11 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-100 hover:bg-indigo-50 transition-all flex items-center justify-center shadow-sm">
+                    <i class="fa-solid fa-circle-info text-lg"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Advance Filter Panel -->
+        <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200 mb-8">
+            <div class="flex items-center justify-between mb-6 px-2">
+                <h3 class="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                    <i class="fa-solid fa-filter text-indigo-500"></i> Advance Filter
+                </h3>
+                <button id="btn-reset-sidebar" class="text-[10px] font-black text-slate-400 uppercase hover:text-indigo-600 transition-colors">Reset Filter</button>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-6 px-2">
+                <div class="flex flex-col gap-2">
+                    <label class="text-[10px] font-extrabold text-slate-400 uppercase ml-1">KPPN (Lingkup)</label>
+                    <select id="filter-kppn" class="filter-select">
+                        <option value="">Semua KPPN</option>
+                        <option value="KPPN SERANG">KPPN Serang</option>
+                        <option value="KPPN TANGERANG">KPPN Tangerang</option>
+                        <option value="KPPN RANGKASBITUNG">KPPN Rangkasbitung</option>
+                    </select>
+                </div>
+                <div class="flex flex-col gap-2">
+                    <label class="text-[10px] font-extrabold text-slate-400 uppercase ml-1">Jenis SPPG</label>
+                    <select id="filter-type" class="filter-select">
+                        <option value="">Semua Jenis</option>
+                    </select>
+                </div>
+                <div class="flex flex-col gap-2">
+                    <label class="text-[10px] font-extrabold text-slate-400 uppercase ml-1">Kabupaten / Kota</label>
+                    <select id="filter-kab" class="filter-select">
+                        <option value="">Semua Kab/Kota</option>
+                    </select>
+                </div>
+                <div class="flex flex-col gap-2">
+                    <label class="text-[10px] font-extrabold text-slate-400 uppercase ml-1">Kecamatan</label>
+                    <select id="filter-kec" class="filter-select">
+                        <option value="">Semua Kecamatan</option>
+                    </select>
+                </div>
+                <div class="flex flex-col gap-2">
+                    <label class="text-[10px] font-extrabold text-slate-400 uppercase ml-1">Validasi / Akurasi</label>
+                    <select id="filter-accuracy" class="filter-select">
+                        <option value="">Semua Level</option>
+                        <option value="1">L1: Precise (Koordinat)</option>
+                        <option value="2">L2: Address (Alamat)</option>
+                        <option value="3">L3: Village (Desa)</option>
+                        <option value="4">L4: District (Kecamatan)</option>
+                        <option value="5">L5: Regency (Kabupaten)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+            <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 text-center">
+                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Precise (L1)</p>
+                <h2 id="stat-l1" class="text-2xl font-black text-emerald-600 tracking-tight">0</h2>
+            </div>
+            <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 text-center">
+                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Address (L2)</p>
+                <h2 id="stat-l2" class="text-2xl font-black text-sky-600 tracking-tight">0</h2>
+            </div>
+            <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 text-center">
+                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Village (L3)</p>
+                <h2 id="stat-l3" class="text-2xl font-black text-violet-600 tracking-tight">0</h2>
+            </div>
+            <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 text-center">
+                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">District (L4)</p>
+                <h2 id="stat-l4" class="text-2xl font-black text-indigo-600 tracking-tight">0</h2>
+            </div>
+            <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 text-center">
+                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Regency (L5)</p>
+                <h2 id="stat-l5" class="text-2xl font-black text-orange-500 tracking-tight">0</h2>
+            </div>
+        </div>
+
+        <!-- Charts Layout -->
+        <div class="grid grid-cols-1 gap-8 mb-8">
+            <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+                <h3 class="text-xs font-black text-slate-900 uppercase tracking-widest mb-6 flex items-center gap-2">
+                    <i class="fa-solid fa-chart-column text-indigo-500"></i> Sebaran SPPG per Kabupaten / Kota
+                </h3>
+                <div class="h-[300px] w-full">
+                    <canvas id="regencyChart"></canvas>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+                    <h3 class="text-xs font-black text-slate-900 uppercase tracking-widest mb-6 flex items-center gap-2">
+                        <i class="fa-solid fa-tags text-indigo-500"></i> Jenis SPPG
+                    </h3>
+                    <div class="h-[300px] w-full">
+                        <canvas id="typeChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+                    <h3 class="text-xs font-black text-slate-900 uppercase tracking-widest mb-6 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-indigo-500"></i> Perkembangan SPPG Kab/Kota
+                    </h3>
+                    <div class="h-[300px] w-full">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="space-y-8">
+            <!-- Map Container -->
+            <div class="relative bg-white p-3 rounded-[3rem] shadow-2xl border border-slate-200 overflow-hidden group">
+                <div class="map-overlay-control">
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" id="toggle-radius-active" class="w-4 h-4 accent-indigo-600 rounded cursor-pointer">
+                        <span class="text-[10px] font-black text-slate-700 uppercase tracking-tight">Estimasi Jangkauan SPPG</span>
+                    </label>
+                    <div id="radius-slider-container" class="flex items-center gap-4 opacity-40 pointer-events-none transition-all border-l border-slate-200 pl-5">
+                        <span class="text-[9px] font-bold text-slate-500 uppercase">Range: <span id="radius-val" class="text-indigo-600 font-black">6</span> KM</span>
+                        <input type="range" id="radius-slider" min="1" max="6" value="6" step="1" class="cursor-pointer">
+                    </div>
+                </div>
+                <div id="map"></div>
+                <div class="bg-slate-50/80 px-8 py-4 border-t border-slate-100 flex flex-wrap items-center justify-center gap-x-10 gap-y-3">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-3 h-3 bg-[#d4af37] rounded-sm border border-white shadow-sm"></div>
+                        <span class="text-[10px] font-black text-slate-700 uppercase tracking-tight">KPPN / KANWIL</span>
+                    </div>
+                    <div class="flex items-center gap-2.5">
+                        <div class="legend-dot" style="background-color: #78350f;"></div>
+                        <span class="text-[10px] font-black text-slate-700 uppercase tracking-tight">SPPG POLRI</span>
+                    </div>
+                    <div class="flex items-center gap-2.5">
+                        <div class="legend-dot" style="background-color: #14532d;"></div>
+                        <span class="text-[10px] font-black text-slate-700 uppercase tracking-tight">SPPG TNI</span>
+                    </div>
+                    <div class="flex items-center gap-2.5">
+                        <div class="legend-dot" style="background-color: #ea580c;"></div>
+                        <span class="text-[10px] font-black text-slate-700 uppercase tracking-tight">SPPG MITRA</span>
+                    </div>
+                    <div class="flex items-center gap-2.5">
+                        <div class="legend-dot" style="background-color: #2563eb;"></div>
+                        <span class="text-[10px] font-black text-slate-700 uppercase tracking-tight">SPPG PONPES</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Informasi Detil SPPG Table -->
+            <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden">
+                <div class="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <h3 class="font-black text-slate-800 uppercase tracking-widest text-xs">Informasi Detil SPPG</h3>
+                    <div class="flex items-center gap-3 w-full md:w-auto">
+                        <div class="relative w-full md:w-80 group">
+                            <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 text-xs group-focus-within:text-indigo-500 transition-colors"></i>
+                            <input type="text" id="registry-search" placeholder="Cari apapun..." 
+                                   class="w-full pl-11 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-[11px] font-semibold focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all shadow-sm">
+                        </div>
+                        <button id="btn-export-excel" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all flex items-center gap-2 shadow-lg shadow-emerald-100">
+                            <i class="fa-solid fa-file-excel"></i> Ekspor Excel
+                        </button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto max-h-[500px] custom-scroll">
+                    <table class="min-w-full divide-y divide-slate-100">
+                        <thead class="bg-white sticky top-0 z-10 shadow-sm">
+                            <tr class="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">
+                                <th class="px-8 py-5 text-left">Nama SPPG/Desa</th>
+                                <th class="px-8 py-5 text-left">Wilayah (Kab/Kota-Kec)</th>
+                                <th class="px-8 py-5 text-left">Kontak Kepala SPPG</th>
+                                <th class="px-8 py-5 text-left">Validasi</th>
+                                <th class="px-8 py-5 text-center">Jenis SPPG</th>
+                                <th class="px-8 py-5 text-left">Keterangan</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sppg-table-body" class="divide-y divide-slate-50 text-[11px] font-medium text-slate-600"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        Chart.register(ChartDataLabels);
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const mapElement = document.getElementById('map');
+            if (!mapElement) return;
+
+            const map = L.map('map', { zoomControl: false, minZoom: 8 }).setView([-6.400, 106.100], 10);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+            const sppgCluster = L.markerClusterGroup({ maxClusterRadius: 40, showCoverageOnHover: false, chunkedLoading: true });
+            const officeLayer = L.layerGroup(); // Layer khusus Institusi agar tidak kena clustering
+            map.addLayer(sppgCluster);
+            map.addLayer(officeLayer);
+            const radiusLayer = L.layerGroup(); 
+
+            let masterData = [];
+            let currentFilteredData = []; 
+            let usedCoords = new Set();
+            let chartInstance = null;
+            let typeChartInstance = null;
+            let trendChartInstance = null;
+            let currentRadiusKM = 6; 
+
+            const KPPN_JURISDICTIONS = {
+                "KPPN SERANG": ["KOTA SERANG", "SERANG", "CILEGON", "KOTA CILEGON"],
+                "KPPN TANGERANG": ["KOTA TANGERANG", "TANGERANG", "KOTA TANGERANG SELATAN"],
+                "KPPN RANGKASBITUNG": ["LEBAK", "PANDÉGLANG", "PANDEGLANG"]
+            };
+
+            const FORCE_L1_LIST = [
+                "SPPG PANDEGLANG SAKETI SINDANGHAYU 2",
+                "SPPG SERANG PULO AMPEL SALIRA",
+                "SPPG KOTA TANGERANG PERIUK SANGIANG JAYA",
+                "SPPG KOTA TANGERANG KARANG TENGAH KARANG MULYA 2",
+                "SPPG KOTA TANGERANG LARANGAN LARANGAN UTARA 2",
+                "SPPG KOTA TANGERANG LARANGAN LARANGAN UTARA",
+                "SPPG KOTA SERANG TAKTAKAN TAKTAKAN 3",
+                "SPPG KOTA TANGERANG SELATAN PAMULANG BAMBU APUS",
+                "SPPG KOTA SERANG CURUG PANCALAKSANA",
+                "SPPG KOTA SERANG KASEMEN KASUNYATAN 2"
+            ];
+
+            const modal = document.getElementById('modal-info');
+            const btnOpenInfo = document.getElementById('btn-open-info');
+            const btnCloseInfo = document.getElementById('close-modal');
+            btnOpenInfo.onclick = () => modal.classList.add('active');
+            btnCloseInfo.onclick = () => modal.classList.remove('active');
+            window.onclick = (e) => { if (e.target == modal) modal.classList.remove('active'); };
+
+            const cleanName = (val) => {
+                if (!val || val === "-" || val === "0") return val;
+                return val.trim().toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+            };
+
+            const cleanPhone = (val) => {
+                if (!val || val === "-" || val === "0") return val;
+                let s = val.toString().trim().replace(/[^0-9]/g, '');
+                if (s.startsWith('8')) return '0' + s;
+                return s;
+            };
+
+            const ADMIN_BOUNDS = {
+                "PANDEGLANG": { center: [-6.3117, 106.1045], lat: [-7.08, -6.15], lng: [105.15, 106.35], color: '#4f46e5' },
+                "LEBAK": { center: [-6.3533, 106.2486], lat: [-7.05, -6.28], lng: [105.85, 106.65], color: '#10b981' },
+                "SERANG": { center: [-6.1112, 106.2435], lat: [-6.35, -5.9], lng: [105.8, 106.45], color: '#f59e0b' },
+                "KOTA SERANG": { center: [-6.1215, 106.1524], lat: [-6.2, -6.05], lng: [106.1, 106.25], color: '#0ea5e9' },
+                "CILEGON": { center: [-6.0125, 106.0520], lat: [-6.1, -5.92], lng: [105.9, 106.12], color: '#ef4444' },
+                "TANGERANG": { center: [-6.2804, 106.4712], lat: [-6.45, -6.0], lng: [106.35, 106.75], color: '#8b5cf6' },
+                "KOTA TANGERANG": { center: [-6.1752, 106.6384], lat: [-6.25, -6.1], lng: [106.55, 106.72], color: '#ec4899' },
+                "KOTA TANGERANG SELATAN": { center: [-6.2886, 106.7179], lat: [-6.38, -6.22], lng: [106.65, 106.82], color: '#14b8a6' }
+            };
+
+            const KECAMATAN_CENTERS = {
+                "SUKARESMI": [-6.5878, 105.8455], "SOBANG": [-6.5823, 105.9124], "PATIA": [-6.4421, 105.9221],
+                "MUNJUL": [-6.6212, 105.9781], "CIBADAK": [-6.3121, 106.2112], "TIGARAKSA": [-6.2804, 106.4712],
+                "BALARAJA": [-6.1912, 106.4561], "CIKANDE": [-6.0451, 106.3561], "ANYAR": [-6.0561, 105.9212],
+                "KASEMEN": [-6.0341, 106.1565], "CURUG": [-6.1764, 106.2152], "WALANTAKA": [-6.1421, 106.2412]
+            };
+
+            const VILLAGE_CENTERS = {
+                "PERDANA": [-6.5878, 105.8455], "SOBANG": [-6.5823, 105.9124], "KASEMEN": [-6.0341, 106.1565],
+                "BANTEN": [-6.0381, 106.1542], "MARGASARI": [-6.0421, 106.1592], "PANCUR": [-6.0512, 106.1621],
+                "SUKAJAYA": [-6.1215, 106.1524], "CIREUNDEU": [-6.1821, 106.6384], "CIMANUK": [-6.3312, 106.0212]
+            };
+
+            const KEYWORD_GEO_DB = {
+                "KH. SYAM'UN": [-6.1112, 106.1512], "VETERAN": [-6.1152, 106.1481], "SUDIRMAN": [-6.1211, 106.1622],
+                "CIMANUK": [-6.3312, 106.0212], "MERAK": [-5.9321, 106.0123], "CILEGON": [-6.0125, 106.0520]
+            };
+
+            function getMarkerColor(type, kelompok) {
+                const k = (kelompok || "").toUpperCase();
+                if (k === "KPPN" || k === "KANWIL DJPB") return "#d4af37";
+                const t = (type || "").toUpperCase();
+                if (t.includes("POLRI")) return "#78350f"; 
+                if (t.includes("TNI")) return "#14532d";   
+                if (t.includes("MITRA")) return "#ea580c"; 
+                if (t.includes("PONPES")) return "#2563eb"; 
+                return "#64748b"; 
+            }
+
+            function validateTiered(item) {
+                const kab = (item.nmkabkota_sppg || "").trim().toUpperCase();
+                const nameUpper = (item.nm_sppg || "").trim().toUpperCase();
+                let lat = 0, lng = 0;
+                const coordStr = item.formatted_koordinat || item.koordinat_sppg || `${item.Latitude},${item.Longitude}`;
+                if (coordStr && coordStr !== "undefined,undefined") {
+                    const parts = coordStr.split(',').map(p => parseFloat(p.toString().trim().replace(',', '.')));
+                    lat = parts[0]; lng = parts[1];
+                }
+
+                if (!isNaN(lat) && lat !== 0) {
+                    const bounds = ADMIN_BOUNDS[kab] || (kab.includes("CILEGON") ? ADMIN_BOUNDS["CILEGON"] : null);
+                    const isInside = bounds && lat >= bounds.lat[0] && lat <= bounds.lat[1] && lng >= bounds.lng[0] && lng <= bounds.lng[1];
+                    const key = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+                    
+                    if (isInside || FORCE_L1_LIST.includes(nameUpper)) {
+                        if (!usedCoords.has(key) || FORCE_L1_LIST.includes(nameUpper)) {
+                            usedCoords.add(key);
+                            return { pos: [lat, lng], level: 1, label: "L1: Precise" };
+                        }
+                    }
+                }
+
+                const alamat = (item.alamat_sppg || "").trim().toUpperCase();
+                for (let key in KEYWORD_GEO_DB) {
+                    if (alamat.includes(key) || nameUpper.includes(key)) {
+                        return { pos: KEYWORD_GEO_DB[key], level: 2, label: `L2: Keyword (${key})` };
+                    }
+                }
+
+                const desa = (item.nmdesa_sppg || "").trim().toUpperCase();
+                if (VILLAGE_CENTERS[desa]) return { pos: VILLAGE_CENTERS[desa], level: 3, label: `L3: Village Snap` };
+                const kec = (item.nmkec_sppg || "").trim().toUpperCase();
+                if (KECAMATAN_CENTERS[kec]) return { pos: KECAMATAN_CENTERS[kec], level: 4, label: `L4: District Snap` };
+                const finalBounds = ADMIN_BOUNDS[kab] || (kab.includes("CILEGON") ? ADMIN_BOUNDS["CILEGON"] : null);
+                if (finalBounds) return { pos: finalBounds.center, level: 5, label: `L5: Regency Snap` };
+
+                return { pos: [-6.400, 106.100], level: 0, label: "System Default" };
+            }
+
+            function populateCascadingOptions() {
+                const currentType = document.getElementById('filter-type').value;
+                const currentKab = document.getElementById('filter-kab').value;
+                const currentKec = document.getElementById('filter-kec').value;
+                const currentAcc = document.getElementById('filter-accuracy').value;
+                const currentKppn = document.getElementById('filter-kppn').value;
+                
+                const sets = { types: new Set(), kabs: new Set(), kecs: new Set(), accs: new Set() };
+
+                masterData.forEach(item => {
+                    const isSPPG = (item.kelompok === "SPPG" || !item.kelompok);
+                    if (!isSPPG) return;
+
+                    const kab = (item.nmkabkota_sppg || "").trim().toUpperCase();
+                    const matchKppn = !currentKppn || (KPPN_JURISDICTIONS[currentKppn] && KPPN_JURISDICTIONS[currentKppn].includes(kab));
+                    const matchT = !currentType || item.jns_sppg === currentType;
+                    const matchKb = !currentKab || item.nmkabkota_sppg === currentKab;
+                    const matchKc = !currentKec || item.nmkec_sppg === currentKec;
+                    const matchAc = !currentAcc || item._vLevel.toString() === currentAcc;
+                    
+                    if (matchKppn && matchKb && matchKc && matchAc && item.jns_sppg) sets.types.add(item.jns_sppg.trim());
+                    if (matchKppn && matchT && matchKc && matchAc && item.nmkabkota_sppg) sets.kabs.add(item.nmkabkota_sppg.trim());
+                    if (matchKppn && matchT && matchKb && matchAc && item.nmkec_sppg) sets.kecs.add(item.nmkec_sppg.trim());
+                    if (matchKppn && matchT && matchKb && matchKc && item._vLevel) sets.accs.add(item._vLevel.toString());
+                });
+
+                const updateEl = (id, set, label, current) => {
+                    const el = document.getElementById(id);
+                    el.innerHTML = `<option value="">Semua ${label}</option>`;
+                    Array.from(set).sort().forEach(val => {
+                        let display = val;
+                        if(id === 'filter-accuracy') {
+                            const labels = { "1": "L1: Precise", "2": "L2: Address", "3": "L3: Village", "4": "L4: District", "5": "L5: Regency" };
+                            display = labels[val] || val;
+                        }
+                        el.innerHTML += `<option value="${val}" ${val === current ? 'selected' : ''}>${display}</option>`;
+                    });
+                };
+                updateEl('filter-type', sets.types, "Jenis", currentType);
+                updateEl('filter-kab', sets.kabs, "Kab/Kota", currentKab);
+                updateEl('filter-kec', sets.kecs, "Kecamatan", currentKec);
+                updateEl('filter-accuracy', sets.accs, "Level", currentAcc);
+            }
+
+            function updateAnalyticsCharts(data) {
+                const sppgData = data.filter(i => i.kelompok === "SPPG" || !i.kelompok);
+
+                const regencyRenameMap = { "SERANG": "Kab. Serang", "TANGERANG": "Kab. Tangerang", "KOTA TANGERANG SELATAN": "Tangsel", "PANDEGLANG": "Pandeglang", "LEBAK": "Lebak", "KOTA SERANG": "Kota Serang", "CILEGON": "Cilegon", "KOTA CILEGON": "Cilegon", "KOTA TANGERANG": "Kota Tangerang" };
+                const rCounts = { "PANDEGLANG": 0, "LEBAK": 0, "SERANG": 0, "KOTA SERANG": 0, "CILEGON": 0, "TANGERANG": 0, "KOTA TANGERANG": 0, "KOTA TANGERANG SELATAN": 0 };
+                sppgData.forEach(item => {
+                    let kab = (item.nmkabkota_sppg || "").trim().toUpperCase();
+                    if (kab === "KOTA CILEGON") kab = "CILEGON";
+                    if (rCounts.hasOwnProperty(kab)) rCounts[kab]++;
+                });
+                const rLabels = Object.keys(ADMIN_BOUNDS).map(l => regencyRenameMap[l] || l);
+                const rValues = Object.keys(ADMIN_BOUNDS).map(l => rCounts[l]);
+                const barColors = ['#4f46e5', '#10b981', '#f59e0b', '#0ea5e9', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
+                const ctxR = document.getElementById('regencyChart').getContext('2d');
+                if (chartInstance) chartInstance.destroy();
+                chartInstance = new Chart(ctxR, {
+                    type: 'bar',
+                    data: { labels: rLabels, datasets: [{ data: rValues, backgroundColor: barColors, borderRadius: 10, barPercentage: 0.85, categoryPercentage: 0.8 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'top', font: { weight: '800' }, formatter: Math.round } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 20 }, grid: { display: false } }, x: { ticks: { font: { size: 9, weight: 'bold' } }, grid: { display: false } } } }
+                });
+
+                const typeCounts = {};
+                sppgData.forEach(i => { const t = i.jns_sppg || "LAINNYA"; typeCounts[t] = (typeCounts[t] || 0) + 1; });
+                const tLabels = Object.keys(typeCounts).sort();
+                const tColors = tLabels.map(l => getMarkerColor(l, "SPPG"));
+                const ctxT = document.getElementById('typeChart').getContext('2d');
+                if (typeChartInstance) typeChartInstance.destroy();
+                typeChartInstance = new Chart(ctxT, {
+                    type: 'bar',
+                    data: { labels: tLabels, datasets: [{ data: tLabels.map(l => typeCounts[l]), backgroundColor: tColors, borderRadius: 10, barPercentage: 0.9, categoryPercentage: 0.9 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'top', font: { weight: '800' } } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 50 }, grid: { display: false } }, x: { ticks: { font: { size: 10, weight: 'bold' } }, grid: { display: false } } } }
+                });
+
+                const timeData = {}; 
+                const uniqueKabs = Object.keys(ADMIN_BOUNDS);
+                sppgData.forEach(item => {
+                    const tgl = item.tglops_sppg;
+                    if (!tgl || !tgl.includes('-')) return;
+                    const parts = tgl.split('-');
+                    if (parts.length < 3) return;
+                    const month = parseInt(parts[1]);
+                    const yearFull = parts[2];
+                    const yearShort = yearFull.slice(-2);
+                    let q = ""; let qNum = 0;
+                    if (month >= 1 && month <= 3) { q = "I"; qNum = 1; }
+                    else if (month >= 4 && month <= 6) { q = "II"; qNum = 2; }
+                    else if (month >= 7 && month <= 9) { q = "III"; qNum = 3; }
+                    else if (month >= 10 && month <= 12) { q = "IV"; qNum = 4; }
+                    if (q === "") return;
+                    const label = `TW ${q} (${yearShort})`;
+                    const sortKey = parseInt(yearFull) * 10 + qNum;
+                    const kab = (item.nmkabkota_sppg || "").trim().toUpperCase().replace("KOTA CILEGON", "CILEGON");
+                    if (!timeData[sortKey]) {
+                        timeData[sortKey] = { label, counts: {} };
+                        uniqueKabs.forEach(k => timeData[sortKey].counts[k] = 0);
+                    }
+                    if (timeData[sortKey].counts.hasOwnProperty(kab)) { timeData[sortKey].counts[kab]++; }
+                });
+
+                const sortedSortKeys = Object.keys(timeData).sort((a, b) => parseInt(a) - parseInt(b));
+                const chartLabels = sortedSortKeys.map(key => timeData[key].label);
+                const datasets = uniqueKabs.map(kab => {
+                    return {
+                        label: regencyRenameMap[kab] || kab,
+                        data: sortedSortKeys.map(key => timeData[key].counts[kab]),
+                        borderColor: ADMIN_BOUNDS[kab].color,
+                        backgroundColor: ADMIN_BOUNDS[kab].color,
+                        tension: 0.3, borderWidth: 2, pointRadius: 3, pointHoverRadius: 6
+                    };
+                });
+                const ctxTrend = document.getElementById('trendChart').getContext('2d');
+                if (trendChartInstance) trendChartInstance.destroy();
+                trendChartInstance = new Chart(ctxTrend, {
+                    type: 'line', data: { labels: chartLabels, datasets: datasets },
+                    options: { responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: 'index' }, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 8, usePointStyle: true, font: { size: 9, weight: 'bold' }, padding: 15 } }, datalabels: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 9 } } }, x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' } } } } }
+                });
+            }
+
+            function render(data) {
+                sppgCluster.clearLayers();
+                officeLayer.clearLayers();
+                radiusLayer.clearLayers();
+                usedCoords.clear();
+                
+                const tableBody = document.getElementById('sppg-table-body');
+                if (!tableBody) return;
+                
+                let stats = { l1: 0, l2: 0, l3: 0, l4: 0, l5: 0 };
+                let tableHtml = '';
+
+                data.forEach(item => {
+                    const validation = validateTiered(item);
+                    const { pos, level, label } = validation;
+                    const k = (item.kelompok || "").toUpperCase();
+                    const isSPPG = (k === "SPPG" || k === "");
+                    const isOffice = (k === "KPPN" || k === "KANWIL DJPB");
+                    
+                    if (isSPPG && level > 0) stats[`l${level}`]++;
+                    item._vLevel = level;
+                    
+                    const dNmKa = cleanName(item.nmka_sppg);
+                    const dNoKa = cleanPhone(item.noka_sppg);
+                    const dEmailKa = (item.emailka_sppg || "").trim().toLowerCase();
+                    const markerColor = getMarkerColor(item.jns_sppg, item.kelompok);
+                    
+                    // Logic Visual Pin (Office vs SPPG)
+                    const iconSize = isOffice ? 48 : 32;
+                    const iconAnchor = iconSize / 2;
+                    const shapeClass = isOffice ? "rounded-xl" : "rounded-full";
+                    const faIcon = isOffice ? "fa-building text-lg" : "fa-utensils text-[10px]";
+
+                    const icon = L.divIcon({ 
+                        html: `<div class="sppg-marker-icon w-full h-full ${shapeClass} status-tier-${level}" style="background-color: ${markerColor}">
+                                    <i class="fa-solid ${faIcon} text-white"></i>
+                               </div>`, 
+                        className: 'custom-icon', 
+                        iconSize: [iconSize, iconSize], 
+                        iconAnchor: [iconAnchor, iconAnchor] 
+                    });
+
+                    let popupContent = `<div class="p-5 min-w-[280px]">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-[8px] font-black uppercase text-white px-2 py-0.5 rounded-full shadow-sm" style="background: ${markerColor}">${label}</span>
+                            <span class="text-[8px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full uppercase">${item.kelompok || 'SPPG'}: ${item.jns_sppg || '-'}</span>
+                        </div>
+                        <h4 class="font-black text-slate-900 text-sm leading-tight mb-1">${item.nm_sppg}</h4>
+                        <p class="text-[10px] text-slate-400 font-medium italic mb-4">Tgl Ops: ${item.tglops_sppg || '-'}</p>
+                        <div class="space-y-4">`;
+
+                    if ((dNmKa && dNmKa !== "-") || (dNoKa && dNoKa !== "-") || (dEmailKa && dEmailKa !== "-" && dEmailKa !== "0")) {
+                        popupContent += `<div><p class="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5"><i class="fa-solid fa-user-tie text-indigo-500"></i> Penanggung Jawab / Kepala</p>
+                                    <div class="bg-slate-50 p-2.5 rounded-xl space-y-1">
+                                        <div class="flex justify-between text-[10px]"><span class="text-slate-400">Nama</span><span class="font-bold text-slate-800 text-right">${dNmKa || '-'}</span></div>
+                                        <div class="flex justify-between text-[10px]"><span class="text-slate-400">No HP</span><span class="font-black text-indigo-600 text-right">${dNoKa || '-'}</span></div>
+                                        ${(dEmailKa && dEmailKa !== "-" && dEmailKa !== "0") ? `<div class="flex justify-between text-[10px]"><span class="text-slate-400">Email</span><span class="font-bold text-slate-800 break-all ml-4 text-right">${dEmailKa}</span></div>` : ''}
+                                    </div></div>`;
+                    }
+                    popupContent += `<div class="pt-2.5 border-t border-slate-100"><p class="text-[10px] font-bold text-slate-700 uppercase mb-0.5">${item.nmdesa_sppg || ''}, ${item.nmkec_sppg}</p><p class="text-[9px] text-slate-400 italic leading-tight">${item.alamat_sppg || '-'}</p></div></div></div>`;
+
+                    if (isOffice) {
+                        L.marker(pos, { icon }).bindPopup(popupContent).addTo(officeLayer);
+                    } else {
+                        L.circle(pos, { radius: currentRadiusKM * 1000, color: markerColor, weight: 1.5, opacity: 0.5, fillColor: markerColor, fillOpacity: 0.08 }).addTo(radiusLayer);
+                        L.marker(pos, { icon }).bindPopup(popupContent).addTo(sppgCluster);
+                        
+                        let keterangan = "-";
+                        let rLat = 0, rLng = 0;
+                        const coordStr = item.formatted_koordinat || item.koordinat_sppg || `${item.Latitude},${item.Longitude}`;
+                        if (coordStr && coordStr !== "undefined,undefined") {
+                            const parts = coordStr.split(',').map(p => parseFloat(p.toString().trim().replace(',', '.')));
+                            rLat = parts[0]; rLng = parts[1];
+                            if (rLat !== 0 && !isNaN(rLat)) {
+                                const inBanten = (rLat >= -7.2 && rLat <= -5.8 && rLng >= 105.0 && rLng <= 106.9);
+                                if (!inBanten) keterangan = "Locus";
+                            }
+                        }
+                        const ketColor = keterangan === "Locus" ? "text-rose-600" : "text-slate-400";
+                        tableHtml += `<tr class="hover:bg-indigo-50/50 transition-colors cursor-pointer" onclick="window.mapJump(${pos[0]}, ${pos[1]})">
+                            <td class="px-8 py-5"><p class="font-black text-slate-900 uppercase leading-none mb-1">${item.nm_sppg}</p><p class="text-[9px] text-slate-400 font-bold uppercase">${item.nmdesa_sppg || '-'}</p></td>
+                            <td class="px-8 py-5"><p class="font-bold text-slate-700 text-[10px] uppercase leading-none mb-1">${item.nmkabkota_sppg || '-'}</p><p class="text-[9px] text-slate-400 font-bold uppercase">${item.nmkec_sppg || '-'}</p></td>
+                            <td class="px-8 py-5"><p class="font-bold text-slate-700 text-[10px] uppercase leading-none mb-1">${dNmKa || '-'}</p><p class="text-[9px] text-indigo-500 font-bold">${dNoKa || '-'}</p></td>
+                            <td class="px-8 py-5 text-center"><span class="text-[9px] font-black uppercase" style="color: ${markerColor}">${label}</span></td>
+                            <td class="px-8 py-5 text-center"><span class="px-3 py-1 rounded-full text-[9px] font-black uppercase" style="background: ${markerColor}15; color: ${markerColor}">${item.jns_sppg}</span></td>
+                            <td class="px-8 py-5"><span class="text-[10px] font-black uppercase ${ketColor}">${keterangan}</span></td>
+                        </tr>`;
+                    }
+                });
+
+                tableBody.innerHTML = tableHtml;
+                for (let i = 1; i <= 5; i++) { 
+                    const el = document.getElementById(`stat-l${i}`); 
+                    if (el) el.innerText = stats[`l${i}`]; 
+                }
+                updateAnalyticsCharts(data);
+                currentFilteredData = data.filter(i => {
+                    const k = (i.kelompok || "").toUpperCase();
+                    return k === "SPPG" || k === "";
+                }); 
+            }
+
+            window.mapJump = (lat, lng) => map.setView([lat, lng], 17, { animate: true });
+
+            async function sync() {
+                const urlEl = document.getElementById('sheet-url');
+                if (!urlEl) return;
+                const url = urlEl.value;
+                document.getElementById('loading').style.display = 'flex';
+                try {
+                    let csvUrl = url;
+                    if (url.includes('/edit')) {
+                        const id = url.match(/\/d\/(.+?)\//)?.[1];
+                        csvUrl = `https://docs.google.com/spreadsheets/d/${id}/export?format=csv`;
+                    }
+                    const res = await fetch(csvUrl);
+                    if (!res.ok) throw new Error("Gagal mengambil data");
+                    const csv = await res.text();
+                    Papa.parse(csv, {
+                        header: true, skipEmptyLines: true,
+                        complete: (results) => {
+                            const raw = results.data.filter(i => i.nm_sppg && i.nm_sppg.trim() !== "");
+                            const uniqueMap = new Map();
+                            raw.forEach(item => {
+                                const name = (item.nm_sppg || "").trim().toUpperCase();
+                                const addr = (item.alamat_sppg || "").trim().toUpperCase();
+                                const compositeKey = `${name}|${addr}`;
+                                const score = Object.values(item).filter(v => v && v !== "-" && v !== "0" && v !== "").length;
+                                if (!uniqueMap.has(compositeKey)) { uniqueMap.set(compositeKey, { item, score }); } 
+                                else { if (score > uniqueMap.get(compositeKey).score) { uniqueMap.set(compositeKey, { item, score }); } }
+                            });
+                            masterData = Array.from(uniqueMap.values()).map(obj => obj.item);
+                            masterData.forEach(item => { const v = validateTiered(item); item._vLevel = v.level; });
+                            populateCascadingOptions();
+                            render(masterData);
+                            document.getElementById('loading').style.display = 'none';
+                        }
+                    });
+                } catch (e) { console.error(e); document.getElementById('loading').style.display = 'none'; }
+            }
+
+            document.getElementById('btn-export-excel').onclick = () => {
+                if (currentFilteredData.length === 0) return;
+                const exportRows = currentFilteredData.map(item => {
+                    const { label } = validateTiered(item);
+                    return {
+                        "Nama": item.nm_sppg,
+                        "Desa": item.nmdesa_sppg,
+                        "Kabupaten/Kota": item.nmkabkota_sppg,
+                        "Kecamatan": item.nmkec_sppg,
+                        "Penanggung Jawab": cleanName(item.nmka_sppg),
+                        "No HP": cleanPhone(item.noka_sppg),
+                        "Status Validasi": label,
+                        "Jenis": item.jns_sppg
+                    };
+                });
+                const ws = XLSX.utils.json_to_sheet(exportRows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Data SPPG");
+                XLSX.writeFile(wb, `SPPG_Data_${new Date().toISOString().slice(0,10)}.xlsx`);
+            };
+
+            const btnSync = document.getElementById('btn-sync');
+            if (btnSync) btnSync.onclick = sync;
+
+            const applyGlobalFilters = () => {
+                const registryQ = document.getElementById('registry-search').value.toLowerCase().trim();
+                const fType = document.getElementById('filter-type').value;
+                const fKab = document.getElementById('filter-kab').value;
+                const fKec = document.getElementById('filter-kec').value;
+                const fAcc = document.getElementById('filter-accuracy').value;
+                const fKppn = document.getElementById('filter-kppn').value;
+                
+                const regTerms = registryQ.split(/\s+/);
+
+                const filtered = masterData.filter(item => {
+                    const k = (item.kelompok || "").toUpperCase();
+                    const isSPPG = (k === "SPPG" || k === "");
+                    const kab = (item.nmkabkota_sppg || "").trim().toUpperCase();
+
+                    const matchKppn = isSPPG ? (!fKppn || (KPPN_JURISDICTIONS[fKppn] && KPPN_JURISDICTIONS[fKppn].includes(kab))) : true;
+                    
+                    const allInfo = Object.values(item).join(' ').toLowerCase();
+                    const matchRegistry = !registryQ || regTerms.every(term => allInfo.includes(term));
+                    
+                    const matchType = isSPPG ? (!fType || item.jns_sppg === fType) : true;
+                    const matchKab = isSPPG ? (!fKab || item.nmkabkota_sppg === fKab) : true;
+                    const matchKec = isSPPG ? (!fKec || item.nmkec_sppg === fKec) : true;
+                    const matchAcc = isSPPG ? (!fAcc || item._vLevel.toString() === fAcc) : true;
+                    
+                    return matchKppn && matchRegistry && matchType && matchKab && matchKec && matchAcc;
+                });
+                
+                populateCascadingOptions();
+                render(filtered);
+            };
+
+            let timeout = null;
+            ['registry-search', 'filter-type', 'filter-kab', 'filter-kec', 'filter-accuracy', 'filter-kppn'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.oninput = el.onchange = () => { clearTimeout(timeout); timeout = setTimeout(applyGlobalFilters, 300); };
+            });
+
+            const toggleRadius = document.getElementById('toggle-radius-active');
+            const sliderRadius = document.getElementById('radius-slider');
+            const radiusValText = document.getElementById('radius-val');
+            toggleRadius.onchange = (e) => {
+                if (e.target.checked) { map.addLayer(radiusLayer); document.getElementById('radius-slider-container').style.opacity = '1'; document.getElementById('radius-slider-container').style.pointerEvents = 'auto'; } 
+                else { map.removeLayer(radiusLayer); document.getElementById('radius-slider-container').style.opacity = '0.4'; document.getElementById('radius-slider-container').style.pointerEvents = 'none'; }
+            };
+            sliderRadius.oninput = (e) => {
+                currentRadiusKM = parseInt(e.target.value);
+                radiusValText.innerText = currentRadiusKM;
+                radiusLayer.eachLayer((layer) => { if (layer instanceof L.Circle) layer.setRadius(currentRadiusKM * 1000); });
+            };
+
+            document.getElementById('btn-reset-sidebar').onclick = () => {
+                ['filter-type', 'filter-kab', 'filter-kec', 'filter-accuracy', 'filter-kppn'].forEach(id => document.getElementById(id).value = '');
+                populateCascadingOptions();
+                render(masterData);
+            };
+
+            sync();
+        });
+    </script>
+</body>
+</html>
