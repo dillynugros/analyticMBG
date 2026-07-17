@@ -13,6 +13,9 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <!-- Leaflet Routing Machine -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
     <!-- PapaParse & ExcelJS (SheetJS) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -96,6 +99,25 @@
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
 
+        /* Styling Khusus Panel Rute */
+        .leaflet-routing-container { display: none !important; } /* Sembunyikan panel instruksi OSRM bawaan */
+        #route-panel {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-radius: 1rem;
+            padding: 1rem;
+            min-width: 250px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            display: none;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
         .info-modal {
             display: none;
             position: fixed;
@@ -146,6 +168,7 @@
                         </h4>
                         <ul class="list-disc ml-5 space-y-1 text-[11px]">
                             <li><strong>Estimasi Jangkauan</strong>: Simulasi radius layanan SPPG (1-6 km).</li>
+                            <li><strong>Routing Perjalanan</strong>: Ekstraksi jarak tempuh dan estimasi waktu rute distribusinya.</li>
                             <li><strong>Registry Detail</strong>: Data induk SPPG, Pengurus, dan Yayasan.</li>
                             <li><strong>Ekspor Data</strong>: Mendukung pengunduhan data tabel ke format Excel (.xlsx).</li>
                             <li><strong>Data Cleaning</strong>: Memilih data terlengkap dari duplikasi nama identik.</li>
@@ -346,6 +369,25 @@
                         <input type="range" id="radius-slider" min="1" max="6" value="6" step="1" class="cursor-pointer">
                     </div>
                 </div>
+
+                <!-- Panel Kalkulasi Rute -->
+                <div id="route-panel">
+                    <h4 class="text-xs font-black text-slate-800 uppercase tracking-widest border-b border-slate-100 pb-2 mb-1 flex items-center gap-2"><i class="fa-solid fa-route text-indigo-500"></i> Kalkulasi Rute</h4>
+                    <div class="text-[10px] font-bold text-slate-500">Titik Awal: <span id="route-start-label" class="text-slate-800 font-black">-</span></div>
+                    <div class="text-[10px] font-bold text-slate-500">Tujuan: <span id="route-end-label" class="text-slate-800 font-black">-</span></div>
+                    <div class="grid grid-cols-2 gap-2 mt-2">
+                        <div class="bg-indigo-50 p-2 rounded-lg text-center shadow-sm">
+                            <div class="text-[9px] uppercase text-indigo-400 font-bold">Total Jarak</div>
+                            <div id="route-distance" class="text-xs font-black text-indigo-600">-</div>
+                        </div>
+                        <div class="bg-emerald-50 p-2 rounded-lg text-center shadow-sm">
+                            <div class="text-[9px] uppercase text-emerald-400 font-bold">Est. Waktu</div>
+                            <div id="route-time" class="text-xs font-black text-emerald-600">-</div>
+                        </div>
+                    </div>
+                    <button onclick="window.clearRoute()" class="mt-2 w-full py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-[10px] font-black uppercase transition-colors shadow-sm border border-rose-100"><i class="fa-solid fa-trash-can mr-1"></i> Bersihkan Rute</button>
+                </div>
+
                 <div id="map"></div>
                 <div class="bg-slate-50/80 px-8 py-4 border-t border-slate-100 flex flex-wrap items-center justify-center gap-x-10 gap-y-3">
                     <div class="flex items-center gap-2.5">
@@ -408,17 +450,25 @@
     <script>
         Chart.register(ChartDataLabels);
 
+        // Variabel Global Rute
+        let routingControl = null;
+        let routeStart = null;
+        let routeEnd = null;
+        let globalLeafletMap = null; // Menyimpan referensi map agar fungsi rute dapat memanggilnya
+
         window.addEventListener('DOMContentLoaded', () => {
             const mapElement = document.getElementById('map');
             if (!mapElement) return;
 
             const map = L.map('map', { zoomControl: false, minZoom: 8 }).setView([-6.400, 106.100], 10);
+            globalLeafletMap = map; // Menyimpan koneksi
+
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(map);
 
             const sppgCluster = L.markerClusterGroup({ maxClusterRadius: 40, showCoverageOnHover: false, chunkedLoading: true });
-            const officeLayer = L.layerGroup(); // Layer khusus Institusi agar tidak kena clustering
+            const officeLayer = L.layerGroup(); 
             map.addLayer(sppgCluster);
             map.addLayer(officeLayer);
             const radiusLayer = L.layerGroup(); 
@@ -716,7 +766,6 @@
                     const dEmailKa = (item.emailka_sppg || "").trim().toLowerCase();
                     const markerColor = getMarkerColor(item.jns_sppg, item.kelompok);
                     
-                    // Logic Visual Pin (Office vs SPPG)
                     const iconSize = isOffice ? 48 : 32;
                     const iconAnchor = iconSize / 2;
                     const shapeClass = isOffice ? "rounded-xl" : "rounded-full";
@@ -748,7 +797,18 @@
                                         ${(dEmailKa && dEmailKa !== "-" && dEmailKa !== "0") ? `<div class="flex justify-between text-[10px]"><span class="text-slate-400">Email</span><span class="font-bold text-slate-800 break-all ml-4 text-right">${dEmailKa}</span></div>` : ''}
                                     </div></div>`;
                     }
-                    popupContent += `<div class="pt-2.5 border-t border-slate-100"><p class="text-[10px] font-bold text-slate-700 uppercase mb-0.5">${item.nmdesa_sppg || ''}, ${item.nmkec_sppg}</p><p class="text-[9px] text-slate-400 italic leading-tight">${item.alamat_sppg || '-'}</p></div></div></div>`;
+                    
+                    // Modifikasi Popup Content dengan Tombol Rute
+                    const jsSafeName = item.nm_sppg ? item.nm_sppg.replace(/'/g, "\\'") : 'Titik Lokasi';
+                    popupContent += `<div class="pt-2.5 border-t border-slate-100">
+                        <p class="text-[10px] font-bold text-slate-700 uppercase mb-0.5">${item.nmdesa_sppg || ''}, ${item.nmkec_sppg}</p>
+                        <p class="text-[9px] text-slate-400 italic leading-tight mb-3">${item.alamat_sppg || '-'}</p>
+                        
+                        <div class="flex gap-2">
+                            <button onclick="window.setRouteStart(${pos[0]}, ${pos[1]}, '${jsSafeName}')" class="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-colors border border-indigo-100 shadow-sm"><i class="fa-solid fa-location-dot"></i> Set Asal</button>
+                            <button onclick="window.setRouteEnd(${pos[0]}, ${pos[1]}, '${jsSafeName}')" class="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-colors border border-emerald-100 shadow-sm"><i class="fa-solid fa-flag-checkered"></i> Set Tujuan</button>
+                        </div>
+                    </div></div></div>`;
 
                     if (isOffice) {
                         L.marker(pos, { icon }).bindPopup(popupContent).addTo(officeLayer);
@@ -883,7 +943,6 @@
                     const matchKec = isSPPG ? (!fKec || item.nmkec_sppg === fKec) : true;
                     const matchAcc = isSPPG ? (!fAcc || item._vLevel.toString() === fAcc) : true;
                     
-                    // Logika Tambahan untuk STATUS dan KUADRAN
                     const matchStatus = isSPPG ? (!fStatus || (item.STATUS && item.STATUS.trim().toUpperCase() === fStatus.toUpperCase())) : true;
                     const matchKuadran = isSPPG ? (!fKuadran || (item.KUADRAN && item.KUADRAN.trim().toUpperCase() === fKuadran.toUpperCase())) : true;
                     
@@ -921,6 +980,73 @@
 
             sync();
         });
+
+        // -------------------------------------------------------------
+        // BLOK FUNGSI ROUTING (LEAFLET ROUTING MACHINE)
+        // -------------------------------------------------------------
+        window.setRouteStart = (lat, lng, name) => {
+            routeStart = L.latLng(lat, lng);
+            document.getElementById('route-start-label').innerText = name;
+            document.getElementById('route-panel').style.display = 'flex';
+            if (globalLeafletMap) globalLeafletMap.closePopup();
+            updateRoute();
+        };
+
+        window.setRouteEnd = (lat, lng, name) => {
+            routeEnd = L.latLng(lat, lng);
+            document.getElementById('route-end-label').innerText = name;
+            document.getElementById('route-panel').style.display = 'flex';
+            if (globalLeafletMap) globalLeafletMap.closePopup();
+            updateRoute();
+        };
+
+        window.clearRoute = () => {
+            routeStart = null;
+            routeEnd = null;
+            document.getElementById('route-panel').style.display = 'none';
+            document.getElementById('route-start-label').innerText = '-';
+            document.getElementById('route-end-label').innerText = '-';
+            document.getElementById('route-distance').innerText = '-';
+            document.getElementById('route-time').innerText = '-';
+            if (routingControl && globalLeafletMap) {
+                globalLeafletMap.removeControl(routingControl);
+                routingControl = null;
+            }
+        };
+
+        function updateRoute() {
+            if (routeStart && routeEnd && globalLeafletMap) {
+                document.getElementById('route-distance').innerText = 'Menghitung...';
+                document.getElementById('route-time').innerText = 'Menghitung...';
+                
+                if (routingControl) {
+                    globalLeafletMap.removeControl(routingControl);
+                }
+                
+                routingControl = L.Routing.control({
+                    waypoints: [routeStart, routeEnd],
+                    routeWhileDragging: false,
+                    showAlternatives: false,
+                    addWaypoints: false,
+                    fitSelectedRoutes: true,
+                    lineOptions: {
+                        styles: [{ color: '#4f46e5', opacity: 0.8, weight: 6 }]
+                    },
+                    createMarker: function() { return null; } // Mencegah duplikasi marker karena kita sudah punya marker cluster
+                }).addTo(globalLeafletMap);
+
+                routingControl.on('routesfound', function(e) {
+                    const summary = e.routes[0].summary;
+                    document.getElementById('route-distance').innerText = (summary.totalDistance / 1000).toFixed(1) + ' km';
+                    document.getElementById('route-time').innerText = Math.round(summary.totalTime / 60) + ' mnt';
+                });
+                
+                routingControl.on('routingerror', function(e) {
+                    document.getElementById('route-distance').innerText = 'Gagal';
+                    document.getElementById('route-time').innerText = 'Gagal';
+                });
+            }
+        }
     </script>
 </body>
 </html>
