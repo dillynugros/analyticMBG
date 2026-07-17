@@ -198,10 +198,14 @@
 
             <div class="flex flex-wrap items-center gap-4">
                 <div class="flex items-center bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200">
-                    <input type="text" id="sheet-url" 
-                           placeholder="Link Google Sheet..."
-                           value="https://docs.google.com/spreadsheets/d/1ukvhk5gIwkILMoFgAdIKAnVMKUX_kG8MH0fWzogmDSQ/edit?usp=sharing"
-                           class="w-64 px-4 py-2.5 text-xs font-semibold focus:outline-none rounded-xl">
+                    <div class="relative flex items-center border-r border-slate-100 mr-1">
+                        <i class="fa-solid fa-database absolute left-4 text-slate-400 text-xs pointer-events-none"></i>
+                        <select id="sheet-url" class="w-56 pl-10 pr-8 py-2.5 text-[11px] font-bold text-slate-700 focus:outline-none rounded-xl bg-transparent appearance-none cursor-pointer hover:bg-slate-50 transition-colors">
+                            <option value="https://docs.google.com/spreadsheets/d/183JdfXdmTl9bvtzgYERQrA648tAwghNk/edit?gid=139269538#gid=139269538">Full Database</option>
+                            <option value="https://docs.google.com/spreadsheets/d/1ukvhk5gIwkILMoFgAdIKAnVMKUX_kG8MH0fWzogmDSQ/edit?gid=0#gid=0" selected>Objek Monev</option>
+                        </select>
+                        <i class="fa-solid fa-chevron-down absolute right-3 text-slate-400 text-[10px] pointer-events-none"></i>
+                    </div>
                     <button id="btn-sync" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase transition-all flex items-center gap-2 shadow-lg shadow-indigo-100">
                         <i class="fa-solid fa-rotate"></i> Sync
                     </button>
@@ -616,7 +620,10 @@
                 chartInstance = new Chart(ctxR, {
                     type: 'bar',
                     data: { labels: rLabels, datasets: [{ data: rValues, backgroundColor: barColors, borderRadius: 10, barPercentage: 0.85, categoryPercentage: 0.8 }] },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'top', font: { weight: '800' }, formatter: Math.round } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 20 }, grid: { display: false } }, x: { ticks: { font: { size: 9, weight: 'bold' } }, grid: { display: false } } } }
+                    options: { 
+                        layout: { padding: { top: 30 } },
+                        responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'top', font: { weight: '800' }, formatter: Math.round } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 20 }, grid: { display: false } }, x: { ticks: { font: { size: 9, weight: 'bold' } }, grid: { display: false } } } 
+                    }
                 });
 
                 const typeCounts = {};
@@ -628,7 +635,10 @@
                 typeChartInstance = new Chart(ctxT, {
                     type: 'bar',
                     data: { labels: tLabels, datasets: [{ data: tLabels.map(l => typeCounts[l]), backgroundColor: tColors, borderRadius: 10, barPercentage: 0.9, categoryPercentage: 0.9 }] },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'top', font: { weight: '800' } } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 50 }, grid: { display: false } }, x: { ticks: { font: { size: 10, weight: 'bold' } }, grid: { display: false } } } }
+                    options: { 
+                        layout: { padding: { top: 30 } },
+                        responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'top', font: { weight: '800' } } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 50 }, grid: { display: false } }, x: { ticks: { font: { size: 10, weight: 'bold' } }, grid: { display: false } } } 
+                    }
                 });
 
                 const timeData = {}; 
@@ -672,7 +682,10 @@
                 if (trendChartInstance) trendChartInstance.destroy();
                 trendChartInstance = new Chart(ctxTrend, {
                     type: 'line', data: { labels: chartLabels, datasets: datasets },
-                    options: { responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: 'index' }, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 8, usePointStyle: true, font: { size: 9, weight: 'bold' }, padding: 15 } }, datalabels: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 9 } } }, x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' } } } } }
+                    options: { 
+                        layout: { padding: { top: 30 } },
+                        responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: 'index' }, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 8, usePointStyle: true, font: { size: 9, weight: 'bold' }, padding: 15 } }, datalabels: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 9 } } }, x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' } } } } 
+                    }
                 });
             }
 
@@ -789,7 +802,9 @@
                     let csvUrl = url;
                     if (url.includes('/edit')) {
                         const id = url.match(/\/d\/(.+?)\//)?.[1];
+                        const gidMatch = url.match(/[?&]gid=([0-9]+)/);
                         csvUrl = `https://docs.google.com/spreadsheets/d/${id}/export?format=csv`;
+                        if (gidMatch) csvUrl += `&gid=${gidMatch[1]}`;
                     }
                     const res = await fetch(csvUrl);
                     if (!res.ok) throw new Error("Gagal mengambil data");
