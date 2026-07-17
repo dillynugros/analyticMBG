@@ -221,7 +221,7 @@
                 <button id="btn-reset-sidebar" class="text-[10px] font-black text-slate-400 uppercase hover:text-indigo-600 transition-colors">Reset Filter</button>
             </div>
             
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-6 px-2">
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-6 px-2">
                 <div class="flex flex-col gap-2">
                     <label class="text-[10px] font-extrabold text-slate-400 uppercase ml-1">KPPN (Lingkup)</label>
                     <select id="filter-kppn" class="filter-select">
@@ -258,6 +258,18 @@
                         <option value="3">L3: Village (Desa)</option>
                         <option value="4">L4: District (Kecamatan)</option>
                         <option value="5">L5: Regency (Kabupaten)</option>
+                    </select>
+                </div>
+                <div class="flex flex-col gap-2">
+                    <label class="text-[10px] font-extrabold text-slate-400 uppercase ml-1">Status</label>
+                    <select id="filter-status" class="filter-select">
+                        <option value="">Semua Status</option>
+                    </select>
+                </div>
+                <div class="flex flex-col gap-2">
+                    <label class="text-[10px] font-extrabold text-slate-400 uppercase ml-1">Kuadran</label>
+                    <select id="filter-kuadran" class="filter-select">
+                        <option value="">Semua Kuadran</option>
                     </select>
                 </div>
             </div>
@@ -539,8 +551,10 @@
                 const currentKec = document.getElementById('filter-kec').value;
                 const currentAcc = document.getElementById('filter-accuracy').value;
                 const currentKppn = document.getElementById('filter-kppn').value;
+                const currentStatus = document.getElementById('filter-status').value;
+                const currentKuadran = document.getElementById('filter-kuadran').value;
                 
-                const sets = { types: new Set(), kabs: new Set(), kecs: new Set(), accs: new Set() };
+                const sets = { types: new Set(), kabs: new Set(), kecs: new Set(), accs: new Set(), statuses: new Set(), kuadrans: new Set() };
 
                 masterData.forEach(item => {
                     const isSPPG = (item.kelompok === "SPPG" || !item.kelompok);
@@ -553,10 +567,15 @@
                     const matchKc = !currentKec || item.nmkec_sppg === currentKec;
                     const matchAc = !currentAcc || item._vLevel.toString() === currentAcc;
                     
-                    if (matchKppn && matchKb && matchKc && matchAc && item.jns_sppg) sets.types.add(item.jns_sppg.trim());
-                    if (matchKppn && matchT && matchKc && matchAc && item.nmkabkota_sppg) sets.kabs.add(item.nmkabkota_sppg.trim());
-                    if (matchKppn && matchT && matchKb && matchAc && item.nmkec_sppg) sets.kecs.add(item.nmkec_sppg.trim());
-                    if (matchKppn && matchT && matchKb && matchKc && item._vLevel) sets.accs.add(item._vLevel.toString());
+                    const matchStatus = !currentStatus || (item.STATUS && item.STATUS.trim().toUpperCase() === currentStatus.toUpperCase());
+                    const matchKuadran = !currentKuadran || (item.KUADRAN && item.KUADRAN.trim().toUpperCase() === currentKuadran.toUpperCase());
+                    
+                    if (matchKppn && matchKb && matchKc && matchAc && matchStatus && matchKuadran && item.jns_sppg) sets.types.add(item.jns_sppg.trim());
+                    if (matchKppn && matchT && matchKc && matchAc && matchStatus && matchKuadran && item.nmkabkota_sppg) sets.kabs.add(item.nmkabkota_sppg.trim());
+                    if (matchKppn && matchT && matchKb && matchAc && matchStatus && matchKuadran && item.nmkec_sppg) sets.kecs.add(item.nmkec_sppg.trim());
+                    if (matchKppn && matchT && matchKb && matchKc && matchStatus && matchKuadran && item._vLevel) sets.accs.add(item._vLevel.toString());
+                    if (matchKppn && matchT && matchKb && matchKc && matchAc && matchKuadran && item.STATUS) sets.statuses.add(item.STATUS.trim().toUpperCase());
+                    if (matchKppn && matchT && matchKb && matchKc && matchAc && matchStatus && item.KUADRAN) sets.kuadrans.add(item.KUADRAN.trim());
                 });
 
                 const updateEl = (id, set, label, current) => {
@@ -575,6 +594,8 @@
                 updateEl('filter-kab', sets.kabs, "Kab/Kota", currentKab);
                 updateEl('filter-kec', sets.kecs, "Kecamatan", currentKec);
                 updateEl('filter-accuracy', sets.accs, "Level", currentAcc);
+                updateEl('filter-status', sets.statuses, "Status", currentStatus);
+                updateEl('filter-kuadran', sets.kuadrans, "Kuadran", currentKuadran);
             }
 
             function updateAnalyticsCharts(data) {
@@ -827,6 +848,8 @@
                 const fKec = document.getElementById('filter-kec').value;
                 const fAcc = document.getElementById('filter-accuracy').value;
                 const fKppn = document.getElementById('filter-kppn').value;
+                const fStatus = document.getElementById('filter-status').value;
+                const fKuadran = document.getElementById('filter-kuadran').value;
                 
                 const regTerms = registryQ.split(/\s+/);
 
@@ -845,7 +868,11 @@
                     const matchKec = isSPPG ? (!fKec || item.nmkec_sppg === fKec) : true;
                     const matchAcc = isSPPG ? (!fAcc || item._vLevel.toString() === fAcc) : true;
                     
-                    return matchKppn && matchRegistry && matchType && matchKab && matchKec && matchAcc;
+                    // Logika Tambahan untuk STATUS dan KUADRAN
+                    const matchStatus = isSPPG ? (!fStatus || (item.STATUS && item.STATUS.trim().toUpperCase() === fStatus.toUpperCase())) : true;
+                    const matchKuadran = isSPPG ? (!fKuadran || (item.KUADRAN && item.KUADRAN.trim().toUpperCase() === fKuadran.toUpperCase())) : true;
+                    
+                    return matchKppn && matchRegistry && matchType && matchKab && matchKec && matchAcc && matchStatus && matchKuadran;
                 });
                 
                 populateCascadingOptions();
@@ -853,7 +880,7 @@
             };
 
             let timeout = null;
-            ['registry-search', 'filter-type', 'filter-kab', 'filter-kec', 'filter-accuracy', 'filter-kppn'].forEach(id => {
+            ['registry-search', 'filter-type', 'filter-kab', 'filter-kec', 'filter-accuracy', 'filter-kppn', 'filter-status', 'filter-kuadran'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.oninput = el.onchange = () => { clearTimeout(timeout); timeout = setTimeout(applyGlobalFilters, 300); };
             });
@@ -872,7 +899,7 @@
             };
 
             document.getElementById('btn-reset-sidebar').onclick = () => {
-                ['filter-type', 'filter-kab', 'filter-kec', 'filter-accuracy', 'filter-kppn'].forEach(id => document.getElementById(id).value = '');
+                ['filter-type', 'filter-kab', 'filter-kec', 'filter-accuracy', 'filter-kppn', 'filter-status', 'filter-kuadran'].forEach(id => document.getElementById(id).value = '');
                 populateCascadingOptions();
                 render(masterData);
             };
