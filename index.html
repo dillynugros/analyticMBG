@@ -100,7 +100,7 @@
         }
 
         /* Styling Khusus Panel Rute */
-        .leaflet-routing-container { display: none !important; } /* Sembunyikan panel instruksi OSRM bawaan */
+        .leaflet-routing-container { display: none !important; } 
         #route-panel {
             position: absolute;
             top: 1.5rem;
@@ -111,7 +111,7 @@
             border: 1px solid rgba(226, 232, 240, 0.8);
             border-radius: 1rem;
             padding: 1rem;
-            min-width: 250px;
+            min-width: 260px;
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
             display: none;
             flex-direction: column;
@@ -168,7 +168,7 @@
                         </h4>
                         <ul class="list-disc ml-5 space-y-1 text-[11px]">
                             <li><strong>Estimasi Jangkauan</strong>: Simulasi radius layanan SPPG (1-6 km).</li>
-                            <li><strong>Routing Perjalanan</strong>: Ekstraksi jarak tempuh dan estimasi waktu rute distribusinya.</li>
+                            <li><strong>Routing Perjalanan</strong>: Ekstraksi jarak tempuh dan estimasi waktu rute distribusi tingkat kepadatan menengah (*Middle-Peak 50%*).</li>
                             <li><strong>Registry Detail</strong>: Data induk SPPG, Pengurus, dan Yayasan.</li>
                             <li><strong>Ekspor Data</strong>: Mendukung pengunduhan data tabel ke format Excel (.xlsx).</li>
                             <li><strong>Data Cleaning</strong>: Memilih data terlengkap dari duplikasi nama identik.</li>
@@ -370,9 +370,11 @@
                     </div>
                 </div>
 
-                <!-- Panel Kalkulasi Rute -->
+                <!-- Panel Kalkulasi Rute Kustom (Middle-Peak 50%) -->
                 <div id="route-panel">
-                    <h4 class="text-xs font-black text-slate-800 uppercase tracking-widest border-b border-slate-100 pb-2 mb-1 flex items-center gap-2"><i class="fa-solid fa-route text-indigo-500"></i> Kalkulasi Rute</h4>
+                    <h4 class="text-xs font-black text-slate-800 uppercase tracking-widest border-b border-slate-100 pb-2 mb-1 flex items-center gap-2">
+                        <i class="fa-solid fa-route text-indigo-500"></i> Analisis Rute (50% Kepadatan)
+                    </h4>
                     <div class="text-[10px] font-bold text-slate-500">Titik Awal: <span id="route-start-label" class="text-slate-800 font-black">-</span></div>
                     <div class="text-[10px] font-bold text-slate-500">Tujuan: <span id="route-end-label" class="text-slate-800 font-black">-</span></div>
                     <div class="grid grid-cols-2 gap-2 mt-2">
@@ -380,9 +382,9 @@
                             <div class="text-[9px] uppercase text-indigo-400 font-bold">Total Jarak</div>
                             <div id="route-distance" class="text-xs font-black text-indigo-600">-</div>
                         </div>
-                        <div class="bg-emerald-50 p-2 rounded-lg text-center shadow-sm">
-                            <div class="text-[9px] uppercase text-emerald-400 font-bold">Est. Waktu</div>
-                            <div id="route-time" class="text-xs font-black text-emerald-600">-</div>
+                        <div class="bg-orange-50 p-2 rounded-lg text-center shadow-sm border border-orange-100">
+                            <div class="text-[9px] uppercase text-orange-400 font-bold flex items-center justify-center gap-1"><i class="fa-solid fa-business-time"></i> Est. Waktu</div>
+                            <div id="route-time" class="text-xs font-black text-orange-600">-</div>
                         </div>
                     </div>
                     <button onclick="window.clearRoute()" class="mt-2 w-full py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-[10px] font-black uppercase transition-colors shadow-sm border border-rose-100"><i class="fa-solid fa-trash-can mr-1"></i> Bersihkan Rute</button>
@@ -454,14 +456,14 @@
         let routingControl = null;
         let routeStart = null;
         let routeEnd = null;
-        let globalLeafletMap = null; // Menyimpan referensi map agar fungsi rute dapat memanggilnya
+        let globalLeafletMap = null; 
 
         window.addEventListener('DOMContentLoaded', () => {
             const mapElement = document.getElementById('map');
             if (!mapElement) return;
 
             const map = L.map('map', { zoomControl: false, minZoom: 8 }).setView([-6.400, 106.100], 10);
-            globalLeafletMap = map; // Menyimpan koneksi
+            globalLeafletMap = map; 
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -798,7 +800,6 @@
                                     </div></div>`;
                     }
                     
-                    // Modifikasi Popup Content dengan Tombol Rute
                     const jsSafeName = item.nm_sppg ? item.nm_sppg.replace(/'/g, "\\'") : 'Titik Lokasi';
                     popupContent += `<div class="pt-2.5 border-t border-slate-100">
                         <p class="text-[10px] font-bold text-slate-700 uppercase mb-0.5">${item.nmdesa_sppg || ''}, ${item.nmkec_sppg}</p>
@@ -982,7 +983,7 @@
         });
 
         // -------------------------------------------------------------
-        // BLOK FUNGSI ROUTING (LEAFLET ROUTING MACHINE)
+        // BLOK LOGIKA ROUTING CUSTOM (MIDDLE-PEAK TIME)
         // -------------------------------------------------------------
         window.setRouteStart = (lat, lng, name) => {
             routeStart = L.latLng(lat, lng);
@@ -1030,15 +1031,40 @@
                     addWaypoints: false,
                     fitSelectedRoutes: true,
                     lineOptions: {
-                        styles: [{ color: '#4f46e5', opacity: 0.8, weight: 6 }]
+                        styles: [{ color: '#6366f1', opacity: 0.85, weight: 6 }] // Garis rute berwarna Indigo
                     },
-                    createMarker: function() { return null; } // Mencegah duplikasi marker karena kita sudah punya marker cluster
+                    createMarker: function() { return null; } // Supaya tidak menumpuk dengan penanda visual asli v6.5.1
                 }).addTo(globalLeafletMap);
 
                 routingControl.on('routesfound', function(e) {
                     const summary = e.routes[0].summary;
-                    document.getElementById('route-distance').innerText = (summary.totalDistance / 1000).toFixed(1) + ' km';
-                    document.getElementById('route-time').innerText = Math.round(summary.totalTime / 60) + ' mnt';
+                    const distanceKM = summary.totalDistance / 1000;
+                    
+                    // --- ALGORITMA PENYESUAIAN WAKTU TEMPUH (MIDDLE-PEAK 50%) ---
+                    // Menggunakan model matematis pembobotan dinamis berdasar klasifikasi jarak tempuh regional Banten.
+                    // Kecepatan jelajah rata-rata logistik/kendaraan campuran pada kondisi middle-peak diset ke ~42 km/jam.
+                    let middlePeakSpeedKMH = 42; 
+                    
+                    if (distanceKM > 30) {
+                        // Jika jarak jauh (>30 km), diasumsikan melewati porsi Tol (Tangerang-Merak) atau Arteri Primer Antar Kota.
+                        // Batas jelajah optimal middle-peak tol dan arteri primer digabung rata-rata menjadi ~55 km/jam.
+                        middlePeakSpeedKMH = 55;
+                    } else if (distanceKM < 5) {
+                        // Jika jarak sangat pendek (<5 km), didominasi jalan pemukiman/lokal tersier dengan hambatan samping tinggi.
+                        // Batas jelajah middle-peak ditekan menjadi ~25 km/jam.
+                        middlePeakSpeedKMH = 25;
+                    }
+                    
+                    // Hitung waktu dasar dalam menit: (Jarak / Kecepatan) * 60 menit
+                    let calculatedTimeMinutes = (distanceKM / middlePeakSpeedKMH) * 60;
+                    
+                    // Tambahkan kompensasi persimpangan dan penalti putar balik statis (~1.5 menit per 5 km perjalanan)
+                    const intersectionDelay = (distanceKM / 5) * 1.5;
+                    calculatedTimeMinutes += intersectionDelay;
+                    
+                    // Tampilkan data hasil penyesuaian pada panel peta
+                    document.getElementById('route-distance').innerText = distanceKM.toFixed(1) + ' km';
+                    document.getElementById('route-time').innerText = Math.round(calculatedTimeMinutes) + ' mnt';
                 });
                 
                 routingControl.on('routingerror', function(e) {
