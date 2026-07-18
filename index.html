@@ -99,7 +99,7 @@
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
 
-        /* Styling Khusus Panel Rute */
+        /* Styling Khusus Panel Rute Multi-stop */
         .leaflet-routing-container { display: none !important; } 
         #route-panel {
             position: absolute;
@@ -111,11 +111,19 @@
             border: 1px solid rgba(226, 232, 240, 0.8);
             border-radius: 1rem;
             padding: 1rem;
-            min-width: 260px;
+            width: 280px;
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
             display: none;
             flex-direction: column;
             gap: 0.5rem;
+        }
+        
+        #route-list-container {
+            max-height: 180px;
+            overflow-y: auto;
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.5rem;
         }
 
         .info-modal {
@@ -168,10 +176,9 @@
                         </h4>
                         <ul class="list-disc ml-5 space-y-1 text-[11px]">
                             <li><strong>Estimasi Jangkauan</strong>: Simulasi radius layanan SPPG (1-6 km).</li>
-                            <li><strong>Routing Perjalanan</strong>: Ekstraksi jarak tempuh dan estimasi waktu rute distribusi tingkat kepadatan menengah (*Middle-Peak 50%*).</li>
+                            <li><strong>Multi-stop Routing (Monev Itinerary)</strong>: Ekstraksi jarak tempuh dan estimasi waktu kunjungan lapangan multi-titik (Simulasi Middle-Peak 50%).</li>
                             <li><strong>Registry Detail</strong>: Data induk SPPG, Pengurus, dan Yayasan.</li>
                             <li><strong>Ekspor Data</strong>: Mendukung pengunduhan data tabel ke format Excel (.xlsx).</li>
-                            <li><strong>Data Cleaning</strong>: Memilih data terlengkap dari duplikasi nama identik.</li>
                         </ul>
                     </div>
 
@@ -182,7 +189,7 @@
                         </div>
                         <div class="text-right">
                             <span class="text-[10px] font-bold text-slate-400 uppercase">App Version</span>
-                            <span class="block text-xs font-black text-indigo-600">v6.5.1 Stable Release</span>
+                            <span class="block text-xs font-black text-indigo-600">v6.5.2 Stable Release</span>
                         </div>
                     </div>
                 </div>
@@ -199,7 +206,7 @@
             </div>
             <div class="space-y-2">
                 <h3 class="text-xl font-extrabold text-slate-800">Geo-Analytics MBG</h3>
-                <p class="text-slate-500 text-xs font-bold uppercase tracking-[0.2em] animate-pulse">Memuat Mesin Performa Tinggi v6.5.1...</p>
+                <p class="text-slate-500 text-xs font-bold uppercase tracking-[0.2em] animate-pulse">Memuat Mesin Performa Tinggi v6.5.2...</p>
             </div>
         </div>
     </div>
@@ -213,7 +220,7 @@
                     <i class="fa-solid fa-utensils text-2xl relative z-10"></i>
                 </div>
                 <div>
-                    <h1 class="text-3xl font-black text-slate-900 tracking-tight leading-none">Geo-Analytics MBG <span class="text-indigo-600 text-xl font-bold italic">v6.5.1</span></h1>
+                    <h1 class="text-3xl font-black text-slate-900 tracking-tight leading-none">Geo-Analytics MBG <span class="text-indigo-600 text-xl font-bold italic">v6.5.2</span></h1>
                     <p class="text-sm font-bold text-slate-600 mt-1 uppercase tracking-tighter">Kanwil DJPb Provinsi Banten</p>
                     <p class="text-[10px] font-medium text-slate-400 italic leading-none">developed by : @dillynugros</p>
                 </div>
@@ -370,14 +377,20 @@
                     </div>
                 </div>
 
-                <!-- Panel Kalkulasi Rute Kustom (Middle-Peak 50%) -->
+                <!-- Panel Kalkulasi Rute Kustom (Multi-stop Monev) -->
                 <div id="route-panel">
-                    <h4 class="text-xs font-black text-slate-800 uppercase tracking-widest border-b border-slate-100 pb-2 mb-1 flex items-center gap-2">
-                        <i class="fa-solid fa-route text-indigo-500"></i> Analisis Rute (50% Kepadatan)
+                    <h4 class="text-xs font-black text-slate-800 uppercase tracking-widest border-b border-slate-100 pb-2 mb-2 flex items-center justify-between">
+                        <span class="flex items-center gap-2"><i class="fa-solid fa-map-location-dot text-indigo-500"></i> Itinerary Monev</span>
+                        <span id="route-count" class="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-md text-[9px]">0 Titik</span>
                     </h4>
-                    <div class="text-[10px] font-bold text-slate-500">Titik Awal: <span id="route-start-label" class="text-slate-800 font-black">-</span></div>
-                    <div class="text-[10px] font-bold text-slate-500">Tujuan: <span id="route-end-label" class="text-slate-800 font-black">-</span></div>
-                    <div class="grid grid-cols-2 gap-2 mt-2">
+                    
+                    <div id="route-list-container" class="custom-scroll">
+                        <ul id="route-list" class="text-[10px] font-bold text-slate-500 space-y-2 pr-1">
+                            <li>Belum ada titik yang dipilih. Klik marker untuk menambahkan rute.</li>
+                        </ul>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 mt-1">
                         <div class="bg-indigo-50 p-2 rounded-lg text-center shadow-sm">
                             <div class="text-[9px] uppercase text-indigo-400 font-bold">Total Jarak</div>
                             <div id="route-distance" class="text-xs font-black text-indigo-600">-</div>
@@ -387,7 +400,7 @@
                             <div id="route-time" class="text-xs font-black text-orange-600">-</div>
                         </div>
                     </div>
-                    <button onclick="window.clearRoute()" class="mt-2 w-full py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-[10px] font-black uppercase transition-colors shadow-sm border border-rose-100"><i class="fa-solid fa-trash-can mr-1"></i> Bersihkan Rute</button>
+                    <button onclick="window.clearRoute()" class="mt-2 w-full py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-[10px] font-black uppercase transition-colors shadow-sm border border-rose-100"><i class="fa-solid fa-rotate-left mr-1"></i> Reset Itinerary</button>
                 </div>
 
                 <div id="map"></div>
@@ -452,10 +465,10 @@
     <script>
         Chart.register(ChartDataLabels);
 
-        // Variabel Global Rute
+        // Variabel Global Rute (Multi-stop)
         let routingControl = null;
-        let routeStart = null;
-        let routeEnd = null;
+        let routeWaypoints = [];
+        let routeNames = [];
         let globalLeafletMap = null; 
 
         window.addEventListener('DOMContentLoaded', () => {
@@ -805,10 +818,7 @@
                         <p class="text-[10px] font-bold text-slate-700 uppercase mb-0.5">${item.nmdesa_sppg || ''}, ${item.nmkec_sppg}</p>
                         <p class="text-[9px] text-slate-400 italic leading-tight mb-3">${item.alamat_sppg || '-'}</p>
                         
-                        <div class="flex gap-2">
-                            <button onclick="window.setRouteStart(${pos[0]}, ${pos[1]}, '${jsSafeName}')" class="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-colors border border-indigo-100 shadow-sm"><i class="fa-solid fa-location-dot"></i> Set Asal</button>
-                            <button onclick="window.setRouteEnd(${pos[0]}, ${pos[1]}, '${jsSafeName}')" class="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-colors border border-emerald-100 shadow-sm"><i class="fa-solid fa-flag-checkered"></i> Set Tujuan</button>
-                        </div>
+                        <button onclick="window.addWaypoint(${pos[0]}, ${pos[1]}, '${jsSafeName}')" class="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-colors border border-indigo-100 shadow-sm"><i class="fa-solid fa-map-pin mr-1"></i> Tambah Titik Monev</button>
                     </div></div></div>`;
 
                     if (isOffice) {
@@ -983,40 +993,74 @@
         });
 
         // -------------------------------------------------------------
-        // BLOK LOGIKA ROUTING CUSTOM (MIDDLE-PEAK TIME)
+        // BLOK LOGIKA ROUTING CUSTOM (MULTI-STOP MONEV & MIDDLE-PEAK 50%)
         // -------------------------------------------------------------
-        window.setRouteStart = (lat, lng, name) => {
-            routeStart = L.latLng(lat, lng);
-            document.getElementById('route-start-label').innerText = name;
+        
+        window.addWaypoint = (lat, lng, name) => {
+            if (routeWaypoints.length >= 10) {
+                alert("Maksimal 10 titik lokasi untuk satu itinerary Monev.");
+                return;
+            }
+            
+            routeWaypoints.push(L.latLng(lat, lng));
+            routeNames.push(name);
+            
+            renderRouteListUI();
+            
             document.getElementById('route-panel').style.display = 'flex';
             if (globalLeafletMap) globalLeafletMap.closePopup();
-            updateRoute();
-        };
-
-        window.setRouteEnd = (lat, lng, name) => {
-            routeEnd = L.latLng(lat, lng);
-            document.getElementById('route-end-label').innerText = name;
-            document.getElementById('route-panel').style.display = 'flex';
-            if (globalLeafletMap) globalLeafletMap.closePopup();
-            updateRoute();
+            
+            // Lakukan kalkulasi rute jika titik lebih dari 1
+            if (routeWaypoints.length > 1) {
+                updateRoute();
+            }
         };
 
         window.clearRoute = () => {
-            routeStart = null;
-            routeEnd = null;
+            routeWaypoints = [];
+            routeNames = [];
             document.getElementById('route-panel').style.display = 'none';
-            document.getElementById('route-start-label').innerText = '-';
-            document.getElementById('route-end-label').innerText = '-';
             document.getElementById('route-distance').innerText = '-';
             document.getElementById('route-time').innerText = '-';
+            renderRouteListUI();
+            
             if (routingControl && globalLeafletMap) {
                 globalLeafletMap.removeControl(routingControl);
                 routingControl = null;
             }
         };
 
+        function renderRouteListUI() {
+            const listEl = document.getElementById('route-list');
+            const countEl = document.getElementById('route-count');
+            listEl.innerHTML = '';
+            countEl.innerText = routeWaypoints.length + ' Titik';
+            
+            if (routeNames.length === 0) {
+                listEl.innerHTML = '<li>Belum ada titik yang dipilih. Klik marker untuk menambahkan rute.</li>';
+            } else {
+                routeNames.forEach((name, index) => {
+                    let badge = "Stop " + index;
+                    let badgeColor = "bg-slate-200 text-slate-600";
+                    if (index === 0) {
+                        badge = "Asal";
+                        badgeColor = "bg-indigo-200 text-indigo-700";
+                    } else if (index === routeNames.length - 1 && routeNames.length > 1) {
+                        badge = "Tujuan";
+                        badgeColor = "bg-emerald-200 text-emerald-700";
+                    }
+                    
+                    listEl.innerHTML += `
+                        <li class="flex items-start gap-2 border-b border-slate-50 pb-1">
+                            <span class="${badgeColor} px-1.5 py-0.5 rounded text-[8px] uppercase mt-0.5 whitespace-nowrap">${badge}</span>
+                            <span class="text-slate-800 leading-tight">${name}</span>
+                        </li>`;
+                });
+            }
+        }
+
         function updateRoute() {
-            if (routeStart && routeEnd && globalLeafletMap) {
+            if (routeWaypoints.length > 1 && globalLeafletMap) {
                 document.getElementById('route-distance').innerText = 'Menghitung...';
                 document.getElementById('route-time').innerText = 'Menghitung...';
                 
@@ -1025,15 +1069,15 @@
                 }
                 
                 routingControl = L.Routing.control({
-                    waypoints: [routeStart, routeEnd],
+                    waypoints: routeWaypoints,
                     routeWhileDragging: false,
                     showAlternatives: false,
                     addWaypoints: false,
                     fitSelectedRoutes: true,
                     lineOptions: {
-                        styles: [{ color: '#6366f1', opacity: 0.85, weight: 6 }] // Garis rute berwarna Indigo
+                        styles: [{ color: '#6366f1', opacity: 0.85, weight: 6 }] 
                     },
-                    createMarker: function() { return null; } // Supaya tidak menumpuk dengan penanda visual asli v6.5.1
+                    createMarker: function() { return null; } 
                 }).addTo(globalLeafletMap);
 
                 routingControl.on('routesfound', function(e) {
@@ -1041,28 +1085,18 @@
                     const distanceKM = summary.totalDistance / 1000;
                     
                     // --- ALGORITMA PENYESUAIAN WAKTU TEMPUH (MIDDLE-PEAK 50%) ---
-                    // Menggunakan model matematis pembobotan dinamis berdasar klasifikasi jarak tempuh regional Banten.
-                    // Kecepatan jelajah rata-rata logistik/kendaraan campuran pada kondisi middle-peak diset ke ~42 km/jam.
                     let middlePeakSpeedKMH = 42; 
                     
                     if (distanceKM > 30) {
-                        // Jika jarak jauh (>30 km), diasumsikan melewati porsi Tol (Tangerang-Merak) atau Arteri Primer Antar Kota.
-                        // Batas jelajah optimal middle-peak tol dan arteri primer digabung rata-rata menjadi ~55 km/jam.
                         middlePeakSpeedKMH = 55;
                     } else if (distanceKM < 5) {
-                        // Jika jarak sangat pendek (<5 km), didominasi jalan pemukiman/lokal tersier dengan hambatan samping tinggi.
-                        // Batas jelajah middle-peak ditekan menjadi ~25 km/jam.
                         middlePeakSpeedKMH = 25;
                     }
                     
-                    // Hitung waktu dasar dalam menit: (Jarak / Kecepatan) * 60 menit
                     let calculatedTimeMinutes = (distanceKM / middlePeakSpeedKMH) * 60;
-                    
-                    // Tambahkan kompensasi persimpangan dan penalti putar balik statis (~1.5 menit per 5 km perjalanan)
                     const intersectionDelay = (distanceKM / 5) * 1.5;
                     calculatedTimeMinutes += intersectionDelay;
                     
-                    // Tampilkan data hasil penyesuaian pada panel peta
                     document.getElementById('route-distance').innerText = distanceKM.toFixed(1) + ' km';
                     document.getElementById('route-time').innerText = Math.round(calculatedTimeMinutes) + ' mnt';
                 });
