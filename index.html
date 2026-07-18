@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Geo-Analytics MBG - Tiered Hierarchy Guard v6.5.2</title>
+    
+    <!-- Pemanggilan Favicon (Logo Tab Browser) dari folder lokal -->
+    <link rel="icon" type="image/png" href="logo.webp" />
+    
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Leaflet CSS & JS -->
@@ -150,8 +154,9 @@
             </button>
             <div class="p-10">
                 <div class="flex items-center gap-5 mb-8">
-                    <div class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
-                        <i class="fa-solid fa-circle-info text-2xl"></i>
+                    <!-- Pemanggilan Logo di Modal Info -->
+                    <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-lg border border-slate-100 p-1">
+                        <img src="logo.webp" alt="Logo Info" class="w-full h-full object-contain">
                     </div>
                     <div>
                         <h2 class="text-2xl font-black text-slate-900 tracking-tight leading-none">Geo-Analytics MBG</h2>
@@ -215,9 +220,9 @@
         <!-- Header Section -->
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
             <div class="flex items-center gap-5">
-                <div class="w-16 h-16 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 relative overflow-hidden">
-                    <i class="fa-solid fa-globe text-3xl opacity-30 absolute"></i>
-                    <i class="fa-solid fa-utensils text-2xl relative z-10"></i>
+                <!-- Pemanggilan Logo Utama di Header -->
+                <div class="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-xl shadow-indigo-200 relative overflow-hidden border border-slate-100 p-1">
+                    <img src="logo.webp" alt="Logo Aplikasi" class="w-full h-full object-contain">
                 </div>
                 <div>
                     <h1 class="text-3xl font-black text-slate-900 tracking-tight leading-none">Geo-Analytics MBG <span class="text-indigo-600 text-xl font-bold italic">v6.5.2</span></h1>
@@ -380,7 +385,7 @@
                 <!-- Panel Kalkulasi Rute Kustom (Multi-stop Monev) -->
                 <div id="route-panel">
                     <h4 class="text-xs font-black text-slate-800 uppercase tracking-widest border-b border-slate-100 pb-2 mb-2 flex items-center justify-between">
-                        <span class="flex items-center gap-2"><i class="fa-solid fa-map-location-dot text-indigo-500"></i> Rute Perjalanan</span>
+                        <span class="flex items-center gap-2"><i class="fa-solid fa-map-location-dot text-indigo-500"></i> Itinerary Monev</span>
                         <span id="route-count" class="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-md text-[9px]">0 Titik</span>
                     </h4>
                     
@@ -400,7 +405,7 @@
                             <div id="route-time" class="text-xs font-black text-orange-600">-</div>
                         </div>
                     </div>
-                    <button onclick="window.clearRoute()" class="mt-2 w-full py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-[10px] font-black uppercase transition-colors shadow-sm border border-rose-100"><i class="fa-solid fa-rotate-left mr-1"></i> Reset Rute</button>
+                    <button onclick="window.clearRoute()" class="mt-2 w-full py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-[10px] font-black uppercase transition-colors shadow-sm border border-rose-100"><i class="fa-solid fa-rotate-left mr-1"></i> Reset Itinerary</button>
                 </div>
 
                 <div id="map"></div>
