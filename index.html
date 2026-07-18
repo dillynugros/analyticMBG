@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geo-Analytics MBG - Tiered Hierarchy Guard v6.5.1</title>
+    <title>Geo-Analytics MBG - Tiered Hierarchy Guard v6.5.2</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Leaflet CSS & JS -->
@@ -795,37 +795,58 @@
                         iconAnchor: [iconAnchor, iconAnchor] 
                     });
 
-                    let popupContent = `<div class="p-5 min-w-[280px]">
-                        <div class="flex justify-between items-start mb-2">
-                            <span class="text-[8px] font-black uppercase text-white px-2 py-0.5 rounded-full shadow-sm" style="background: ${markerColor}">${label}</span>
-                            <span class="text-[8px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full uppercase">${item.kelompok || 'SPPG'}: ${item.jns_sppg || '-'}</span>
-                        </div>
-                        <h4 class="font-black text-slate-900 text-sm leading-tight mb-1">${item.nm_sppg}</h4>
-                        <p class="text-[10px] text-slate-400 font-medium italic mb-4">Tgl Ops: ${item.tglops_sppg || '-'}</p>
-                        <div class="space-y-4">`;
+                    // FUNGSI PEMBUATAN KONTEN POPUP DINAMIS
+                    const createPopupContent = () => {
+                        let popupHtml = `<div class="p-5 min-w-[280px]">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-[8px] font-black uppercase text-white px-2 py-0.5 rounded-full shadow-sm" style="background: ${markerColor}">${label}</span>
+                                <span class="text-[8px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full uppercase">${item.kelompok || 'SPPG'}: ${item.jns_sppg || '-'}</span>
+                            </div>
+                            <h4 class="font-black text-slate-900 text-sm leading-tight mb-1">${item.nm_sppg}</h4>
+                            <p class="text-[10px] text-slate-400 font-medium italic mb-4">Tgl Ops: ${item.tglops_sppg || '-'}</p>
+                            <div class="space-y-4">`;
 
-                    if ((dNmKa && dNmKa !== "-") || (dNoKa && dNoKa !== "-") || (dEmailKa && dEmailKa !== "-" && dEmailKa !== "0")) {
-                        popupContent += `<div><p class="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5"><i class="fa-solid fa-user-tie text-indigo-500"></i> Penanggung Jawab / Kepala</p>
-                                    <div class="bg-slate-50 p-2.5 rounded-xl space-y-1">
-                                        <div class="flex justify-between text-[10px]"><span class="text-slate-400">Nama</span><span class="font-bold text-slate-800 text-right">${dNmKa || '-'}</span></div>
-                                        <div class="flex justify-between text-[10px]"><span class="text-slate-400">No HP</span><span class="font-black text-indigo-600 text-right">${dNoKa || '-'}</span></div>
-                                        ${(dEmailKa && dEmailKa !== "-" && dEmailKa !== "0") ? `<div class="flex justify-between text-[10px]"><span class="text-slate-400">Email</span><span class="font-bold text-slate-800 break-all ml-4 text-right">${dEmailKa}</span></div>` : ''}
-                                    </div></div>`;
-                    }
-                    
-                    const jsSafeName = item.nm_sppg ? item.nm_sppg.replace(/'/g, "\\'") : 'Titik Lokasi';
-                    popupContent += `<div class="pt-2.5 border-t border-slate-100">
-                        <p class="text-[10px] font-bold text-slate-700 uppercase mb-0.5">${item.nmdesa_sppg || ''}, ${item.nmkec_sppg}</p>
-                        <p class="text-[9px] text-slate-400 italic leading-tight mb-3">${item.alamat_sppg || '-'}</p>
+                        if ((dNmKa && dNmKa !== "-") || (dNoKa && dNoKa !== "-") || (dEmailKa && dEmailKa !== "-" && dEmailKa !== "0")) {
+                            popupHtml += `<div><p class="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5"><i class="fa-solid fa-user-tie text-indigo-500"></i> Penanggung Jawab / Kepala</p>
+                                        <div class="bg-slate-50 p-2.5 rounded-xl space-y-1">
+                                            <div class="flex justify-between text-[10px]"><span class="text-slate-400">Nama</span><span class="font-bold text-slate-800 text-right">${dNmKa || '-'}</span></div>
+                                            <div class="flex justify-between text-[10px]"><span class="text-slate-400">No HP</span><span class="font-black text-indigo-600 text-right">${dNoKa || '-'}</span></div>
+                                            ${(dEmailKa && dEmailKa !== "-" && dEmailKa !== "0") ? `<div class="flex justify-between text-[10px]"><span class="text-slate-400">Email</span><span class="font-bold text-slate-800 break-all ml-4 text-right">${dEmailKa}</span></div>` : ''}
+                                        </div></div>`;
+                        }
                         
-                        <button onclick="window.addWaypoint(${pos[0]}, ${pos[1]}, '${jsSafeName}')" class="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-colors border border-indigo-100 shadow-sm"><i class="fa-solid fa-map-pin mr-1"></i> Tambah Titik Monev</button>
-                    </div></div></div>`;
+                        const jsSafeName = item.nm_sppg ? item.nm_sppg.replace(/'/g, "\\'") : 'Titik Lokasi';
+                        
+                        // LOGIKA TOMBOL DINAMIS BERDASARKAN STATUS WAYPOINT
+                        let btnLabel = "Pilih Titik Awal";
+                        let btnIcon = "fa-location-crosshairs";
+                        let btnColor = "bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-100";
+                        
+                        if (routeWaypoints.length === 1) {
+                            btnLabel = "Pilih Titik Tujuan";
+                            btnIcon = "fa-flag-checkered";
+                            btnColor = "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-100";
+                        } else if (routeWaypoints.length > 1) {
+                            btnLabel = "Tambah Titik Tujuan";
+                            btnIcon = "fa-plus";
+                            btnColor = "bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-100";
+                        }
+
+                        popupHtml += `<div class="pt-2.5 border-t border-slate-100">
+                            <p class="text-[10px] font-bold text-slate-700 uppercase mb-0.5">${item.nmdesa_sppg || ''}, ${item.nmkec_sppg}</p>
+                            <p class="text-[9px] text-slate-400 italic leading-tight mb-3">${item.alamat_sppg || '-'}</p>
+                            
+                            <button onclick="window.addWaypoint(${pos[0]}, ${pos[1]}, '${jsSafeName}')" class="w-full py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-colors border shadow-sm ${btnColor}"><i class="fa-solid ${btnIcon} mr-1"></i> ${btnLabel}</button>
+                        </div></div></div>`;
+                        
+                        return popupHtml;
+                    };
 
                     if (isOffice) {
-                        L.marker(pos, { icon }).bindPopup(popupContent).addTo(officeLayer);
+                        L.marker(pos, { icon }).bindPopup(createPopupContent).addTo(officeLayer);
                     } else {
                         L.circle(pos, { radius: currentRadiusKM * 1000, color: markerColor, weight: 1.5, opacity: 0.5, fillColor: markerColor, fillOpacity: 0.08 }).addTo(radiusLayer);
-                        L.marker(pos, { icon }).bindPopup(popupContent).addTo(sppgCluster);
+                        L.marker(pos, { icon }).bindPopup(createPopupContent).addTo(sppgCluster);
                         
                         let keterangan = "-";
                         let rLat = 0, rLng = 0;
